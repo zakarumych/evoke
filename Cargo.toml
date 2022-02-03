@@ -1,7 +1,7 @@
 [package]
 name = "evoke"
 version = "0.2.0"
-edition = "2018"
+edition = "2021"
 authors = ["Zakarum <zakarumych@ya.ru>"]
 license = "MIT OR Apache-2.0"
 documentation = "https://docs.rs/evoke"
@@ -23,7 +23,7 @@ server = []
 evoke-core = { version = "=0.1.1", path = "core" }
 
 alkahest = { version = "0.1" }
-scoped-arena = "0.3"
+scoped-arena = "0.4"
 thiserror = "1.0"
 tokio = { version = "1.0", optional = true }
 tracing = "0.1"
@@ -41,6 +41,7 @@ tokio = { version = "1.0", features = ["macros", "rt", "net", "time"] }
 required-features = ["tcp"]
 
 [workspace]
+members = ["core", "evocation"]
 
 [package.metadata.docs.rs]
 all-features = true

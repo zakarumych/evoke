@@ -1,9 +1,9 @@
-use std::{collections::HashMap, error::Error, num::NonZeroU64};
+use std::{collections::HashMap, error::Error, io, num::NonZeroU64};
 
 use alkahest::{Schema, SeqUnpacked, Unpacked};
 use scoped_arena::Scope;
 
-use crate::channel::{Channel, Listener};
+use evocation::port::{Port, Remote, RemoteId};
 
 use super::*;
 
@@ -26,46 +26,43 @@ enum ClientState {
     Disconnected,
 }
 
-struct Client<C> {
+struct Client {
     state: ClientState,
     last_input_step: u64,
     next_update_step: u64,
-    channel: C,
 }
 
-pub struct ServerSession<C, L> {
-    listener: L,
+pub struct ServerSession<P> {
+    port: P,
     current_step: u64,
-    clients: HashMap<NonZeroU64, Client<C>>,
-    next_client_id: NonZeroU64,
+    clients: HashMap<RemoteId, Client>,
 }
 
-pub enum Event<'a, C, P: Schema, I: Schema> {
+pub enum Event<'a, R, P: Schema, I: Schema> {
     ClientConnect(ClientConnectEvent<'a, C>),
     AddPlayer(AddPlayerEvent<'a, C, P>),
     Inputs(InputsEvent<'a, I>),
     Disconnected,
 }
 
-pub struct ClientConnectEvent<'a, C> {
-    client: &'a mut Client<C>,
+pub struct ClientConnectEvent<'a, R> {
+    remote: &'a mut R,
     current_step: u64,
 }
 
-impl<C> ClientConnectEvent<'_, C>
+impl<R> ClientConnectEvent<'_, R>
 where
-    C: Channel,
+    R: Remote,
 {
-    pub async fn accept(self, scope: &Scope<'_>) -> Result<(), C::Error> {
+    pub async fn accept(self) -> io::Result<()> {
         self.client.state = ClientState::Connected;
 
-        self.client
-            .channel
-            .send_reliable::<ServerMessage, _>(
+        self.remote
+            .send::<ServerMessage, _>(
+                true,
                 ServerMessageConnectedPack {
                     step: self.current_step,
                 },
-                scope,
             )
             .await
     }
@@ -141,8 +138,8 @@ where
 
 impl<C, L> ServerSession<C, L>
 where
-    C: Channel,
-    L: Listener<Channel = C>,
+    C: Channel + Unpin,
+    L: Listener<Channel = C> + Unpin,
 {
     /// Create new server session via specified channel.
     pub fn new(listener: L) -> Self {
@@ -241,8 +238,8 @@ where
             debug_assert!(!matches!(client.state, ClientState::Disconnected));
 
             let cid = ClientId(id);
-            let msgs = client.channel.recv::<ClientMessage<P, I>>(scope);
-            match msgs {
+            let msg = client.channel.try_recv::<ClientMessage<P, I>>(scope);
+            match msg {
                 Ok(Some(ClientMessageUnpacked::Connect { token: _ })) => {
                     if let ClientState::Pending = client.state {
                         Some((

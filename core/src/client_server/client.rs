@@ -1,9 +1,9 @@
-use std::error::Error;
+use std::{error::Error, io};
 
 use alkahest::{Schema, Unpacked};
 use scoped_arena::Scope;
 
-use crate::channel::Channel;
+use evocation::channel::Channel;
 
 use super::*;
 
@@ -125,7 +125,7 @@ where
     pub fn advance<'a, U>(
         &mut self,
         scope: &'a Scope<'_>,
-    ) -> Result<Option<Updates<'a, U>>, ClientError<C::Error>>
+    ) -> Result<Option<Updates<'a, U>>, ClientError<io::Error>>
     where
         U: Schema,
     {
